@@ -56,6 +56,9 @@
       <div id="focusPrompt" class="focus-prompt">
         <span class="focus-text">click here or press <kbd>space</kbd> to start</span>
       </div>
+
+      <!-- AI quiz trigger — revealed on pause / finish -->
+      <button id="quizTrigger" class="quiz-trigger" title="Quiz me on what you've read (q)">question me!</button>
     </section>
 
     <!-- live readout + progress -->
@@ -68,7 +71,7 @@
 
     <!-- hint line -->
     <p class="hint">
-      <kbd>space</kbd> play/pause · <kbd>n</kbd> new text · <kbd>s</kbd> settings · <kbd>r</kbd> restart · <kbd>↑</kbd><kbd>↓</kbd> wpm
+      <kbd>space</kbd> play/pause · <kbd>q</kbd> quiz · <kbd>n</kbd> new text · <kbd>s</kbd> settings · <kbd>r</kbd> restart · <kbd>↑</kbd><kbd>↓</kbd> wpm
     </p>
   </main>
 
@@ -85,11 +88,16 @@
   <div id="settingsPanel" class="overlay" hidden>
     <div class="panel" role="dialog" aria-modal="true" aria-label="Settings">
       <div class="panel-head">
-        <h2>settings</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="reading" role="tab">reading</button>
+          <button class="tab" data-tab="ai" role="tab">ai</button>
+        </div>
         <button class="icon-btn" data-close title="Close (esc)" aria-label="Close">✕</button>
       </div>
 
       <div class="panel-body">
+        <!-- ===== reading tab ===== -->
+        <div class="tab-panel" data-tabpanel="reading">
         <label class="field">
           <span class="field-label">wpm <em id="wpmVal">300</em></span>
           <input type="range" id="set-wpm" min="50" max="1500" step="25" />
@@ -163,6 +171,44 @@
             <option value="justify">justify</option>
           </select>
         </label>
+        </div><!-- /reading tab -->
+
+        <!-- ===== ai tab ===== -->
+        <div class="tab-panel" data-tabpanel="ai" hidden>
+          <label class="field">
+            <span class="field-label">openai api key</span>
+            <input type="password" id="ai-apikey" class="text-input" placeholder="paste your openai key…" autocomplete="off" spellcheck="false" />
+            <span class="field-note">stored only in your browser · never uploaded</span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">model</span>
+            <input type="text" id="ai-model" class="text-input" placeholder="gpt-4o-mini" autocomplete="off" spellcheck="false" />
+            <span class="field-note">leave as-is unless you know better</span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">difficulty <em id="ai-difficulty-label">medium</em></span>
+            <input type="range" id="ai-difficulty" min="1" max="5" step="1" />
+            <span class="field-scale"><span>gentle</span><span>brutal</span></span>
+          </label>
+
+          <div class="field">
+            <span class="field-label">questions per stop</span>
+            <div class="segmented" id="ai-count" role="group" aria-label="Questions per stop">
+              <button class="seg" data-count="1">1</button>
+              <button class="seg" data-count="2">2</button>
+              <button class="seg" data-count="3">3</button>
+              <button class="seg" data-count="4">4</button>
+              <button class="seg" data-count="auto">up to ai</button>
+            </div>
+          </div>
+
+          <div class="field field-row">
+            <span class="field-label">remove stored key</span>
+            <button class="btn-ghost btn-clearkey" id="ai-clearkey">clear key</button>
+          </div>
+        </div><!-- /ai tab -->
       </div>
 
       <div class="panel-foot">
@@ -207,10 +253,22 @@
     </div>
   </div>
 
+  <!-- ===================== QUIZ OVERLAY ===================== -->
+  <div id="quizPanel" class="overlay" hidden>
+    <div class="panel panel-quiz" role="dialog" aria-modal="true" aria-label="Comprehension quiz">
+      <div class="panel-head">
+        <h2>quiz <span id="quizProgress" class="quiz-progress"></span></h2>
+        <button class="icon-btn" data-close title="Exit quiz (esc)" aria-label="Exit quiz">✕</button>
+      </div>
+      <div class="panel-body" id="quizBody"></div>
+    </div>
+  </div>
+
   <!-- Scripts: load in order, no modules -->
   <script src="js/samples.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/reader.js"></script>
+  <script src="js/ai.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
