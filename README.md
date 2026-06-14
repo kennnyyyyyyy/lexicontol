@@ -35,6 +35,7 @@ The result: the discipline of a pacer, without the comprehension cost of flashin
 - **Smooth auto-scroll** — keeps the active line comfortably in view.
 - **Fully themeable** — font, size, colours, alignment, and reader dimensions, all live.
 - **Paste your own text** — or cycle through five built-in academic passages.
+- **AI comprehension quiz** — optional ABCD questions on what you just read, UCAT-style at high difficulty ([details](#ai-quiz)).
 - **Everything persists** — settings are saved to `localStorage`.
 - **Zero build step** — open `index.html` directly, or host it as a static site.
 
@@ -46,11 +47,14 @@ The result: the discipline of a pacer, without the comprehension cost of flashin
 | `r` | Restart — reset to the start, paused |
 | `n` | New text — open the paste-text overlay |
 | `s` | Settings |
+| `q` | Quiz me — open the AI quiz (when paused or finished) |
 | `←` | Skip back one chunk |
 | `→` | Skip ahead one chunk |
 | `↑` | WPM +25 |
 | `↓` | WPM −25 |
 | `esc` | Close any open overlay / panel |
+
+Inside the quiz: `A`–`D` or `1`–`4` to answer, `enter` / `space` to continue, `esc` to exit.
 
 Shortcuts are suppressed while you're typing in the text box or a settings field.
 
@@ -86,6 +90,45 @@ So with radius `R = 1.0`, only the active chunk is clear and its immediate neigh
 fully blurred. Raising `R` extends a "clear halo" outward and feathers the falloff — e.g.
 at `R = 1.5` a word one step away sits at 50% blur; at `R = 2.0` it's fully sharp while a
 word two steps away takes over the full blur.
+
+## AI quiz
+
+Pause or finish a passage and a subtle **`question me!`** button appears in the reading
+area (or just press `q`). lexicontol sends **the text you've actually read so far** to
+OpenAI and gets back multiple-choice (A/B/C/D) comprehension questions, presented one per
+screen with immediate feedback, explanations, and a final score.
+
+It's fully **keyboard-first**: `A`–`D` or `1`–`4` to answer, `enter` to continue, `esc` to
+exit back to exactly where you paused.
+
+Two knobs in **settings › ai**:
+
+- **Difficulty (1–5)** — at low difficulty the wrong answers are obviously off-topic; at
+  high difficulty the distractors deliberately *blend in*, echoing the passage's wording
+  and concepts so they're genuinely hard to tell apart (UCAT-brutal at 5).
+- **Questions per stop** — `1`–`4`, or `up to ai` to let the model pick (1–4) based on how
+  dense the passage is.
+
+### Setup
+
+1. Open **settings** (`s`) → the **`ai`** tab.
+2. Paste an [OpenAI API key](https://platform.openai.com/api-keys).
+3. That's it — the default model is `gpt-4o-mini`.
+
+The reader works perfectly with **no key set**; the quiz simply prompts you to add one.
+
+### Privacy & security
+
+- Your API key is stored **only in your browser's `localStorage`** (`lexicontol.ai`). It is
+  **never committed, never uploaded to any server, and never leaves your machine** except
+  in the request your browser makes directly to OpenAI.
+- **Do not hardcode a key** into the source for a public deployment — anyone could read it.
+  `.gitignore` also blocks `.env` / `*.key` / `secrets.*` defensively.
+
+### Cost
+
+`gpt-4o-mini` is very cheap. Each quiz is a passage plus a short JSON response — a few
+hundred tokens — which works out to a fraction of a cent per quiz.
 
 ## Getting started
 
@@ -138,14 +181,19 @@ lexicontol/
 │   ├── samples.js    # LC.samples — built-in passages
 │   ├── settings.js   # LC.settings — state, panel, localStorage
 │   ├── reader.js     # LC.reader — blur-reveal engine, timing, scroll
+│   ├── ai.js         # LC.ai — optional OpenAI comprehension quiz
 │   └── app.js        # init, keyboard shortcuts, wiring (loads last)
 └── assets/
 ```
 
+The AI quiz is fully optional and self-contained in `ai.js`; the reader has no dependency
+on it and runs identically with no key configured.
+
 ## Roadmap
 
 - Saved passage library with tags and search
-- Comprehension quiz mode after each passage
+- ~~AI comprehension quiz~~ ✅ shipped — see [AI quiz](#ai-quiz)
+- Track quiz scores over time and resurface missed questions
 - Reading stats over time (WPM trend, sessions, streaks)
 - Import from URL, PDF, or `.txt`
 - Per-passage bookmarks and resume
