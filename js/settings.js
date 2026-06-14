@@ -26,6 +26,7 @@ LC.settings = (function () {
 
   var values = Object.assign({}, DEFAULTS);
   var listeners = [];
+  var activeTab = "reading";
 
   /* ---- persistence ---- */
   function load() {
@@ -125,7 +126,30 @@ LC.settings = (function () {
     bindToggle("set-smooth", "smoothScroll");
 
     var resetBtn = document.getElementById("resetSettings");
-    if (resetBtn) resetBtn.addEventListener("click", reset);
+    if (resetBtn) resetBtn.addEventListener("click", function () {
+      // reset the active tab; AI reset keeps the saved key (handled in ai.js)
+      if (activeTab === "ai" && window.LC && LC.ai && LC.ai.resetConfig) LC.ai.resetConfig();
+      else reset();
+    });
+
+    bindTabs();
+  }
+
+  /* ---- settings tabs (reading / ai) ---- */
+  function bindTabs() {
+    document.querySelectorAll(".tab").forEach(function (t) {
+      t.addEventListener("click", function () { switchTab(t.dataset.tab); });
+    });
+  }
+
+  function switchTab(name) {
+    activeTab = name;
+    document.querySelectorAll(".tab").forEach(function (t) {
+      t.classList.toggle("active", t.dataset.tab === name);
+    });
+    document.querySelectorAll("[data-tabpanel]").forEach(function (p) {
+      p.hidden = (p.dataset.tabpanel !== name);
+    });
   }
 
   function bindRange(id, key, parser) {
@@ -173,6 +197,7 @@ LC.settings = (function () {
     reset: reset,
     onChange: onChange,
     applyStyles: applyStyles,
-    syncPanel: syncPanel
+    syncPanel: syncPanel,
+    switchTab: switchTab
   };
 })();
