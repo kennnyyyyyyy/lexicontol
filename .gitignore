@@ -1,0 +1,14 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+
+# dependencies (none expected — vanilla project)
+node_modules/
+
+# editors
+.vscode/
+.idea/
+*.swp

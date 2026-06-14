@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lexicontol — speed-reading trainer</title>
+  <meta name="description" content="A speed-reading trainer that paces your eyes by un-blurring words — not flashing them." />
+
+  <!-- Google Fonts: Roboto Mono (default) + Inter (sans option) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- ===================== TOP BAR ===================== -->
+  <header class="topbar">
+    <div class="brand" title="lexicontol">
+      <svg class="brand-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path fill="currentColor" d="M12 5C6.5 5 2.4 8.5 1 12c1.4 3.5 5.5 7 11 7s9.6-3.5 11-7c-1.4-3.5-5.5-7-11-7Zm0 11.5A4.5 4.5 0 1 1 16.5 12 4.5 4.5 0 0 1 12 16.5Zm0-7A2.5 2.5 0 1 0 14.5 12 2.5 2.5 0 0 0 12 9.5Z"/>
+      </svg>
+      <span class="brand-name">lexicontol</span>
+    </div>
+
+    <nav class="topnav">
+      <div class="wpm-chips" role="group" aria-label="WPM presets">
+        <button class="chip" data-wpm="200">200</button>
+        <button class="chip" data-wpm="300">300</button>
+        <button class="chip" data-wpm="400">400</button>
+        <button class="chip" data-wpm="500">500</button>
+      </div>
+
+      <button class="mode-toggle" id="modeToggle" title="Toggle auto / manual advance">
+        <span class="mode-label">auto</span>
+      </button>
+
+      <button class="icon-btn" id="newBtn" title="New text (n)" aria-label="New text">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M14 3v4a1 1 0 0 0 1 1h4M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm7 6v6m-3-3h6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" title="Settings (s)" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 15.5A3.5 3.5 0 1 1 15.5 12 3.5 3.5 0 0 1 12 15.5Zm8.4-3.5a6.6 6.6 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a6.8 6.8 0 0 0-1.7-1l-.4-2.5H9.2l-.4 2.5a6.8 6.8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a6.6 6.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a6.8 6.8 0 0 0 1.7 1l.4 2.5h4.6l.4-2.5a6.8 6.8 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6a6.6 6.6 0 0 0 .1-1Z"/></svg>
+      </button>
+      <button class="icon-btn" id="infoBtn" title="About" aria-label="About">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 15h-2v-6h2Zm0-8h-2V7h2Z"/></svg>
+      </button>
+    </nav>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="stage">
+    <section class="reader-wrap">
+      <div id="reader" class="reader" tabindex="0" aria-label="Reading area"></div>
+
+      <!-- focus prompt overlay -->
+      <div id="focusPrompt" class="focus-prompt">
+        <span class="focus-text">click here or press <kbd>space</kbd> to start</span>
+      </div>
+    </section>
+
+    <!-- live readout + progress -->
+    <div class="readout">
+      <span class="readout-item"><span id="wordsRead">0</span> / <span id="wordsTotal">0</span></span>
+      <span class="readout-sep">·</span>
+      <span class="readout-item"><span id="liveWpm">300</span> wpm</span>
+    </div>
+    <div class="progress" aria-hidden="true"><div id="progressBar" class="progress-bar"></div></div>
+
+    <!-- hint line -->
+    <p class="hint">
+      <kbd>space</kbd> play/pause · <kbd>n</kbd> new text · <kbd>s</kbd> settings · <kbd>r</kbd> restart · <kbd>↑</kbd><kbd>↓</kbd> wpm
+    </p>
+  </main>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="https://github.com/kennnyyyyyyy/lexicontol" target="_blank" rel="noopener">github</a>
+      <button class="linklike" id="aboutLink">about</button>
+    </div>
+    <span class="version">v1.0.0</span>
+  </footer>
+
+  <!-- ===================== SETTINGS PANEL ===================== -->
+  <div id="settingsPanel" class="overlay" hidden>
+    <div class="panel" role="dialog" aria-modal="true" aria-label="Settings">
+      <div class="panel-head">
+        <h2>settings</h2>
+        <button class="icon-btn" data-close title="Close (esc)" aria-label="Close">✕</button>
+      </div>
+
+      <div class="panel-body">
+        <label class="field">
+          <span class="field-label">wpm <em id="wpmVal">300</em></span>
+          <input type="range" id="set-wpm" min="50" max="1500" step="25" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">chunk size <em id="chunkVal">1</em></span>
+          <input type="range" id="set-chunk" min="1" max="6" step="1" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">blur strength <em id="maxBlurVal">5px</em></span>
+          <input type="range" id="set-maxblur" min="0" max="20" step="1" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">blur radius <em id="blurRadiusVal">1.0</em></span>
+          <input type="range" id="set-blurradius" min="1" max="4" step="0.1" />
+        </label>
+
+        <div class="field field-row">
+          <span class="field-label">auto-advance</span>
+          <button class="toggle" id="set-auto" role="switch" aria-checked="true"></button>
+        </div>
+
+        <div class="field field-row">
+          <span class="field-label">smooth scroll</span>
+          <button class="toggle" id="set-smooth" role="switch" aria-checked="true"></button>
+        </div>
+
+        <label class="field">
+          <span class="field-label">window width <em id="widthVal">70%</em></span>
+          <input type="range" id="set-width" min="30" max="100" step="1" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">window height <em id="heightVal">320px</em></span>
+          <input type="range" id="set-height" min="120" max="640" step="10" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">font size <em id="fontSizeVal">32px</em></span>
+          <input type="range" id="set-fontsize" min="14" max="64" step="1" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">font family</span>
+          <select id="set-fontfamily">
+            <option value="'Roboto Mono', monospace">Roboto Mono</option>
+            <option value="'Courier New', monospace">Courier New</option>
+            <option value="'Inter', sans-serif">Inter</option>
+            <option value="Georgia, serif">Georgia</option>
+          </select>
+        </label>
+
+        <div class="field field-row">
+          <span class="field-label">font color</span>
+          <input type="color" id="set-fontcolor" />
+        </div>
+
+        <div class="field field-row">
+          <span class="field-label">background</span>
+          <input type="color" id="set-bgcolor" />
+        </div>
+
+        <label class="field">
+          <span class="field-label">text alignment</span>
+          <select id="set-align">
+            <option value="left">left</option>
+            <option value="center">center</option>
+            <option value="justify">justify</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="panel-foot">
+        <button class="btn-ghost" id="resetSettings">reset to defaults</button>
+        <button class="btn-accent" data-close>done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== NEW TEXT OVERLAY ===================== -->
+  <div id="newTextPanel" class="overlay" hidden>
+    <div class="panel" role="dialog" aria-modal="true" aria-label="New text">
+      <div class="panel-head">
+        <h2>new text</h2>
+        <button class="icon-btn" data-close title="Close (esc)" aria-label="Close">✕</button>
+      </div>
+      <div class="panel-body">
+        <textarea id="newTextArea" class="textarea" placeholder="paste your passage here…" spellcheck="false"></textarea>
+      </div>
+      <div class="panel-foot">
+        <button class="btn-ghost" id="loadSample">load sample</button>
+        <button class="btn-accent" id="loadText">read this</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== ABOUT OVERLAY ===================== -->
+  <div id="aboutPanel" class="overlay" hidden>
+    <div class="panel panel-narrow" role="dialog" aria-modal="true" aria-label="About">
+      <div class="panel-head">
+        <h2>about</h2>
+        <button class="icon-btn" data-close title="Close (esc)" aria-label="Close">✕</button>
+      </div>
+      <div class="panel-body about-body">
+        <p><strong>lexicontol</strong> paces your eyes by un-blurring words instead of flashing them one at a time.</p>
+        <p>The whole paragraph stays on screen in a normal horizontal layout. A reading "head" sweeps left-to-right at your target speed, sharpening words as it reaches them — so you keep natural eye movement while a pacer pulls you forward.</p>
+        <p class="sub">tune everything in <kbd>s</kbd> settings. paste your own text with <kbd>n</kbd>.</p>
+      </div>
+      <div class="panel-foot">
+        <button class="btn-accent" data-close>got it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts: load in order, no modules -->
+  <script src="js/samples.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/reader.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
