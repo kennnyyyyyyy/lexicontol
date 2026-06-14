@@ -3,23 +3,31 @@
    Optional, additive AI comprehension quiz.
 
    Responsibilities:
-     • config (apiKey / model / difficulty / count) + localStorage
-     • the OpenAI chat-completions call + prompt builder
+     • config (model / difficulty / count) + localStorage
+     • the prompt builder + proxied chat-completions call
      • the quiz state machine (generate → answer → score)
      • the on-brand loading controller (caret + phrases + shimmer)
 
-   SECURITY: the API key lives ONLY in localStorage under
-   `lexicontol.ai` (property `apiKey`). It is never hardcoded,
-   never committed, and never sent anywhere except OpenAI.
+   ARCHITECTURE: the browser never talks to OpenAI directly (OpenAI
+   doesn't send CORS headers, and a browser key would be public).
+   Instead it POSTs to a Cloudflare Worker proxy, which holds the
+   OPENAI_API_KEY as an encrypted Worker secret and forwards the call:
+
+       browser → PROXY_URL (holds the key) → OpenAI → back
+
+   No API key lives in this repo, in localStorage, or in the browser.
    ============================================================ */
 
 window.LC = window.LC || {};
 
 LC.ai = (function () {
+  // Cloudflare Worker proxy. This URL is NOT secret — the key sits
+  // behind it as a Worker secret. See README › "Set up the proxy".
+  var PROXY_URL = "https://lexicontol-proxy.kenzojhjii.workers.dev";
+
   var STORAGE_KEY = "lexicontol.ai";
 
   var DEFAULTS = {
-    apiKey: "",
     model: "gpt-4o-mini",
     difficulty: 3,
     count: "auto"        // "1".."4" or "auto" (= up to AI)
@@ -60,7 +68,7 @@ LC.ai = (function () {
   var phraseTimer = null;
 
   /* =========================================================
-     config persistence
+     config persistence (non-secret settings only)
      ========================================================= */
   function load() {
     try {
@@ -85,11 +93,9 @@ LC.ai = (function () {
     syncSettings();
   }
 
-  // AI "reset to defaults" — keeps a saved key unless explicitly cleared
+  // AI "reset to defaults"
   function resetConfig() {
-    var keepKey = config.apiKey;
     Object.keys(DEFAULTS).forEach(function (k) { config[k] = DEFAULTS[k]; });
-    config.apiKey = keepKey;
     save();
     syncSettings();
   }
@@ -120,9 +126,11 @@ LC.ai = (function () {
   }
 
   /* =========================================================
-     OpenAI call + validation
+     proxied OpenAI call + validation
      ========================================================= */
-  function callOpenAI(text) {
+  function callProxy(text) {
+    // Same OpenAI chat-completions body — just sent to the Worker, which
+    // attaches the secret key server-side and forwards the call upstream.
     var body = {
       model: config.model || "gpt-4o-mini",
       temperature: 0.6,
@@ -134,12 +142,9 @@ LC.ai = (function () {
       ]
     };
 
-    return fetch("https://api.openai.com/v1/chat/completions", {
+    return fetch(PROXY_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + config.apiKey
-      },
+      headers: { "Content-Type": "application/json" },   // no key in the browser
       body: JSON.stringify(body)
     }).then(function (res) {
       if (!res.ok) {
@@ -149,6 +154,7 @@ LC.ai = (function () {
       }
       return res.json();
     }).then(function (data) {
+      // the Worker passes OpenAI's response through unchanged
       var content = data && data.choices && data.choices[0] &&
                     data.choices[0].message && data.choices[0].message.content;
       return parseQuiz(content);
@@ -182,8 +188,8 @@ LC.ai = (function () {
 
   // one auto-retry, but only for malformed JSON (not auth/rate/network)
   function generateWithRetry(text) {
-    return callOpenAI(text).catch(function (e) {
-      if (e && e.code === "parse") return callOpenAI(text);
+    return callProxy(text).catch(function (e) {
+      if (e && e.code === "parse") return callProxy(text);
       throw e;
     });
   }
@@ -191,10 +197,11 @@ LC.ai = (function () {
   function errCode(e) {
     if (!e) return "network";
     if (e.code === "parse") return "parse";
-    if (e.status === 401) return "401";
+    if (e.status === 403) return "403";   // Worker rejected the origin
+    if (e.status === 401) return "401";   // OpenAI rejected the Worker's key
     if (e.status === 429) return "429";
     if (e.status) return "http";
-    return "network";   // fetch rejection (offline, CORS, DNS…)
+    return "network";   // fetch rejection (offline, CORS, bad worker url…)
   }
 
   /* =========================================================
@@ -227,7 +234,6 @@ LC.ai = (function () {
     quiz = null;
     setProgress("");
 
-    if (!config.apiKey) { renderError("nokey"); return; }
     if (!text) { renderError("notext"); return; }
 
     var myToken = ++token;
@@ -372,31 +378,26 @@ LC.ai = (function () {
   function renderError(code) {
     stopPhrases();
     setProgress("");
-    var msg, action = "";
+    var msg, action = '<button class="btn-accent" id="quizRetry">try again</button>';
     switch (code) {
-      case "nokey":
-        msg = "add your openai key in settings › ai";
-        action = '<button class="btn-accent" id="quizOpenAi">open settings › ai</button>';
-        break;
       case "notext":
         msg = "read a little first, then come back for questions";
         action = '<button class="btn-accent" data-close>back to reading</button>';
         break;
+      case "403":
+        msg = "proxy rejected this site — check the allowed origin in your worker";
+        break;
       case "401":
-        msg = "that key didn't work — check it in settings › ai";
-        action = '<button class="btn-accent" id="quizOpenAi">open settings › ai</button>';
+        msg = "the key in your cloudflare worker didn't work";
         break;
       case "429":
         msg = "openai's busy — try again in a sec";
-        action = '<button class="btn-accent" id="quizRetry">try again</button>';
         break;
       case "parse":
         msg = "couldn't shape that into a quiz — try again";
-        action = '<button class="btn-accent" id="quizRetry">try again</button>';
         break;
       default:
-        msg = "couldn't reach openai — check your connection";
-        action = '<button class="btn-accent" id="quizRetry">try again</button>';
+        msg = "couldn't reach the proxy — check the worker url";
     }
 
     ui.body.innerHTML =
@@ -407,16 +408,6 @@ LC.ai = (function () {
 
     var retry = document.getElementById("quizRetry");
     if (retry) retry.addEventListener("click", function () { startQuiz(currentText); });
-
-    var openAi = document.getElementById("quizOpenAi");
-    if (openAi) openAi.addEventListener("click", function () {
-      close();
-      var sp = document.getElementById("settingsPanel");
-      if (sp) sp.hidden = false;
-      if (LC.settings.switchTab) LC.settings.switchTab("ai");
-      var k = document.getElementById("ai-apikey");
-      if (k) setTimeout(function () { k.focus(); }, 30);
-    });
 
     // close buttons inside the error block
     ui.body.querySelectorAll("[data-close]").forEach(function (b) {
@@ -448,10 +439,9 @@ LC.ai = (function () {
   }
 
   /* =========================================================
-     settings (ai tab) wiring
+     settings (ai tab) wiring — model / difficulty / count
      ========================================================= */
   function syncSettings() {
-    setV("ai-apikey", config.apiKey);
     setV("ai-model", config.model);
     setV("ai-difficulty", config.difficulty);
     setText("ai-difficulty-label", DIFF_LABEL[config.difficulty] || "medium");
@@ -464,9 +454,6 @@ LC.ai = (function () {
   function setText(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
 
   function bindSettings() {
-    var key = document.getElementById("ai-apikey");
-    if (key) key.addEventListener("input", function () { setConfig("apiKey", key.value.trim()); });
-
     var model = document.getElementById("ai-model");
     if (model) model.addEventListener("input", function () { setConfig("model", model.value.trim()); });
 
@@ -475,27 +462,6 @@ LC.ai = (function () {
 
     document.querySelectorAll("#ai-count .seg").forEach(function (b) {
       b.addEventListener("click", function () { setConfig("count", b.getAttribute("data-count")); });
-    });
-
-    bindClearKey();
-  }
-
-  // two-step "clear key" so the stored key is never wiped accidentally
-  function bindClearKey() {
-    var btn = document.getElementById("ai-clearkey");
-    if (!btn) return;
-    var armed = false, t = null;
-    function disarm() { armed = false; btn.textContent = "clear key"; btn.classList.remove("armed"); if (t) { clearTimeout(t); t = null; } }
-    btn.addEventListener("click", function () {
-      if (!armed) {
-        armed = true;
-        btn.textContent = "click again to clear";
-        btn.classList.add("armed");
-        t = setTimeout(disarm, 2500);
-        return;
-      }
-      setConfig("apiKey", "");
-      disarm();
     });
   }
 
@@ -518,7 +484,6 @@ LC.ai = (function () {
     isOpen: isOpen,
     handleKey: handleKey,
     resetConfig: resetConfig,
-    hasKey: function () { return !!config.apiKey; },
     config: config,
     // exposed for tests / console debugging (mirrors reader.js style)
     _parse: parseQuiz,

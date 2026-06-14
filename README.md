@@ -94,9 +94,9 @@ word two steps away takes over the full blur.
 ## AI quiz
 
 Pause or finish a passage and a subtle **`question me!`** button appears in the reading
-area (or just press `q`). lexicontol sends **the text you've actually read so far** to
-OpenAI and gets back multiple-choice (A/B/C/D) comprehension questions, presented one per
-screen with immediate feedback, explanations, and a final score.
+area (or just press `q`). lexicontol sends **the text you've actually read so far** to a
+small proxy and gets back multiple-choice (A/B/C/D) comprehension questions, presented one
+per screen with immediate feedback, explanations, and a final score.
 
 It's fully **keyboard-first**: `A`–`D` or `1`–`4` to answer, `enter` to continue, `esc` to
 exit back to exactly where you paused.
@@ -109,21 +109,33 @@ Two knobs in **settings › ai**:
 - **Questions per stop** — `1`–`4`, or `up to ai` to let the model pick (1–4) based on how
   dense the passage is.
 
-### Setup
+### How the request is routed
 
-1. Open **settings** (`s`) → the **`ai`** tab.
-2. Paste an [OpenAI API key](https://platform.openai.com/api-keys).
-3. That's it — the default model is `gpt-4o-mini`.
+OpenAI doesn't send CORS headers, and an API key in front-end code would be public — so the
+browser never calls OpenAI directly. Instead it calls a tiny **Cloudflare Worker** that
+holds the key as an encrypted secret and forwards the request:
 
-The reader works perfectly with **no key set**; the quiz simply prompts you to add one.
+```
+your browser  →  Cloudflare Worker (holds OPENAI_API_KEY)  →  OpenAI  →  back
+```
 
-### Privacy & security
+The key lives **only** as a Worker secret — never in the browser, never in this repo.
 
-- Your API key is stored **only in your browser's `localStorage`** (`lexicontol.ai`). It is
-  **never committed, never uploaded to any server, and never leaves your machine** except
-  in the request your browser makes directly to OpenAI.
-- **Do not hardcode a key** into the source for a public deployment — anyone could read it.
-  `.gitignore` also blocks `.env` / `*.key` / `secrets.*` defensively.
+### Set up the proxy
+
+The Worker source is in [`worker.js`](worker.js). To run your own:
+
+1. **dash.cloudflare.com** → **Workers & Pages** → **Create** → **Worker**. Name it
+   `lexicontol-proxy` and deploy.
+2. **Edit code**, paste [`worker.js`](worker.js), and **Deploy**. (Its `ALLOWED_ORIGINS`
+   list gates who may use the proxy — add your own domain if you fork.)
+3. **Settings → Variables and Secrets → Add → Secret**: name `OPENAI_API_KEY`, value your
+   [OpenAI key](https://platform.openai.com/api-keys). Save and deploy.
+4. Copy the Worker URL (e.g. `https://lexicontol-proxy.<subdomain>.workers.dev`) into the
+   `PROXY_URL` constant at the top of [`js/ai.js`](js/ai.js).
+
+That's it — the quiz now works with no per-user setup, and the default model is
+`gpt-4o-mini`. The Worker URL is **not** secret; the key behind it is.
 
 ### Cost
 

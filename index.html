@@ -175,11 +175,10 @@
 
         <!-- ===== ai tab ===== -->
         <div class="tab-panel" data-tabpanel="ai" hidden>
-          <label class="field">
-            <span class="field-label">openai api key</span>
-            <input type="password" id="ai-apikey" class="text-input" placeholder="paste your openai key…" autocomplete="off" spellcheck="false" />
-            <span class="field-note">stored only in your browser · never uploaded</span>
-          </label>
+          <div class="field">
+            <span class="field-label">connection</span>
+            <span class="field-note">ai runs through your cloudflare proxy · no key in the browser</span>
+          </div>
 
           <label class="field">
             <span class="field-label">model</span>
@@ -202,11 +201,6 @@
               <button class="seg" data-count="4">4</button>
               <button class="seg" data-count="auto">up to ai</button>
             </div>
-          </div>
-
-          <div class="field field-row">
-            <span class="field-label">remove stored key</span>
-            <button class="btn-ghost btn-clearkey" id="ai-clearkey">clear key</button>
           </div>
         </div><!-- /ai tab -->
       </div>
