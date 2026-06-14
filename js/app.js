@@ -39,12 +39,21 @@
     if (el) el.hidden = false;
   }
   function closeOverlays() {
+    // let the quiz tear down cleanly (stop timers, invalidate in-flight calls)
+    if (window.LC && LC.ai && LC.ai.isOpen()) LC.ai.close();
     document.querySelectorAll(".overlay").forEach(function (o) { o.hidden = true; });
   }
   function anyOverlayOpen() { return !!document.querySelector(".overlay:not([hidden])"); }
 
   function openSettings() { openOverlay("settingsPanel"); }
   function openAbout() { openOverlay("aboutPanel"); }
+
+  // quiz runs on the text read so far (words[0 .. head])
+  function openQuiz() {
+    var st = LC.reader.getState();
+    if (st !== "paused" && st !== "done") return;
+    if (window.LC && LC.ai) LC.ai.open(LC.reader.readText());
+  }
   function openNewText() {
     openOverlay("newTextPanel");
     var ta = document.getElementById("newTextArea");
@@ -73,13 +82,16 @@
   }
 
   function onKeyDown(e) {
-    // esc always closes any open overlay first
+    // esc always closes any open overlay first (quiz gets a clean teardown)
     if (e.key === "Escape") {
+      if (window.LC && LC.ai && LC.ai.isOpen()) { LC.ai.close(); e.preventDefault(); return; }
       if (anyOverlayOpen()) { closeOverlays(); e.preventDefault(); }
       return;
     }
     // never hijack keys while typing in a field
     if (isTyping()) return;
+    // the quiz overlay captures its own keys (A–D / 1–4 / enter / space)
+    if (window.LC && LC.ai && LC.ai.isOpen()) { LC.ai.handleKey(e); return; }
     // let space/enter activate a focused button or link natively
     var ae = document.activeElement;
     if ((e.key === " " || e.key === "Enter") && ae && (ae.tagName === "BUTTON" || ae.tagName === "A")) return;
@@ -91,6 +103,7 @@
       case "r": case "R": LC.reader.restart(); break;
       case "n": case "N": e.preventDefault(); openNewText(); break;
       case "s": case "S": openSettings(); break;
+      case "q": case "Q": openQuiz(); break;
       case "ArrowLeft":  e.preventDefault(); LC.reader.skip(-1); break;
       case "ArrowRight": e.preventDefault(); LC.reader.skip(1); break;
       case "ArrowUp":    e.preventDefault(); bumpWpm(25); break;
@@ -139,6 +152,13 @@
     var readerWrap = document.querySelector(".reader-wrap");
     if (readerWrap) readerWrap.addEventListener("click", primaryAction);
 
+    // "question me!" trigger — stop the click from bubbling to the reader-wrap
+    on("quizTrigger", "click", function (e) {
+      e.stopPropagation();
+      openQuiz();
+      this.blur();
+    });
+
     document.addEventListener("keydown", onKeyDown);
   }
 
@@ -151,6 +171,7 @@
   function init() {
     LC.settings.init();
     LC.reader.init({ onUpdate: onUpdate });
+    LC.ai.init();
     wireUI();
     // first load → first sample
     LC.reader.load(LC.samples[0].text);

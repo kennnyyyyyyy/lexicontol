@@ -11,6 +11,7 @@ LC.reader = (function () {
 
   var container;        // #reader element
   var focusPrompt;      // #focusPrompt overlay
+  var quizTrigger;      // #quizTrigger "question me!" button
   var spans = [];       // <span class="word"> nodes
   var headIndex = 0;    // index of first word in the active chunk
   var state = "ready";  // ready | reading | paused | done
@@ -247,6 +248,21 @@ LC.reader = (function () {
     if (focusPrompt) focusPrompt.classList.toggle("hidden", !show);
   }
 
+  // the quiz trigger only appears once there's something to be quizzed on
+  function updateQuizTrigger() {
+    if (!quizTrigger) return;
+    var show = (state === "paused" || state === "done");
+    quizTrigger.classList.toggle("show", show);
+  }
+
+  // the text read so far — words[0 .. last revealed word]
+  function readText() {
+    var read = progress().read;
+    var parts = [];
+    for (var i = 0; i < read; i++) parts.push(spans[i].textContent);
+    return parts.join(" ");
+  }
+
   function progress() {
     var total = spans.length;
     var read = total === 0 ? 0 : Math.min(headIndex + S.values.chunkSize, total);
@@ -259,13 +275,17 @@ LC.reader = (function () {
     };
   }
 
-  function emit() { if (onUpdate) onUpdate(progress()); }
+  function emit() {
+    updateQuizTrigger();
+    if (onUpdate) onUpdate(progress());
+  }
 
   /* ---------- init ---------- */
 
   function init(opts) {
     container = document.getElementById("reader");
     focusPrompt = document.getElementById("focusPrompt");
+    quizTrigger = document.getElementById("quizTrigger");
     onUpdate = opts && opts.onUpdate;
 
     // settings that affect layout/blur must re-render the reader
@@ -284,6 +304,7 @@ LC.reader = (function () {
     restart: restart,
     refresh: refresh,
     progress: progress,
+    readText: readText,
     getState: function () { return state; },
     isAuto: function () { return S.values.autoAdvance; },
     // exposed for tests / console verification of §3.2
