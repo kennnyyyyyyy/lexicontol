@@ -142,23 +142,35 @@ LC.ai = (function () {
       ]
     };
 
+    // Only `fetch` rejecting (offline / DNS / CORS) is a real network failure.
+    // A response that arrives — at any status — is NOT a network error.
     return fetch(PROXY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },   // no key in the browser
       body: JSON.stringify(body)
     }).then(function (res) {
-      if (!res.ok) {
-        var err = new Error("HTTP " + res.status);
-        err.status = res.status;
-        throw err;
-      }
-      return res.json();
-    }).then(function (data) {
-      // the Worker passes OpenAI's response through unchanged
-      var content = data && data.choices && data.choices[0] &&
-                    data.choices[0].message && data.choices[0].message.content;
-      return parseQuiz(content);
+      // read the body exactly once, then reuse the text for every branch
+      return res.text().then(function (raw) {
+        if (!res.ok) {
+          var httpErr = new Error("HTTP " + res.status);
+          httpErr.status = res.status;     // categorized by status, not as network
+          httpErr.body = raw;
+          throw httpErr;
+        }
+        // everything below is "data shaping": failures here are parse errors,
+        // never network errors. parseEnvelope/parseQuiz tag them with code "parse".
+        var data = parseEnvelope(raw);
+        var content = data && data.choices && data.choices[0] &&
+                      data.choices[0].message && data.choices[0].message.content;
+        return parseQuiz(content);
+      });
     });
+  }
+
+  // the outer OpenAI/proxy envelope: { choices: [ { message: { content } } ] }
+  function parseEnvelope(raw) {
+    try { return JSON.parse(raw); }
+    catch (e) { var pe = new Error("bad envelope json"); pe.code = "parse"; throw pe; }
   }
 
   function parseQuiz(content) {
@@ -241,11 +253,19 @@ LC.ai = (function () {
 
     generateWithRetry(text).then(function (data) {
       if (myToken !== token || !isOpen()) return;        // stale / closed
-      quiz = { questions: data.questions, index: 0, answered: false, score: 0 };
       stopPhrases();
-      renderQuestion();
+      // We have valid quiz data. A failure from here on is a rendering bug,
+      // not a request failure — categorize it as such instead of "network".
+      try {
+        quiz = { questions: data.questions, index: 0, answered: false, score: 0 };
+        renderQuestion();
+      } catch (renderErr) {
+        console.error("[quiz] render failed", renderErr);
+        renderError("parse");
+      }
     }).catch(function (e) {
       if (myToken !== token || !isOpen()) return;
+      console.error("[quiz]", e);
       stopPhrases();
       renderError(errCode(e));
     });
@@ -290,6 +310,13 @@ LC.ai = (function () {
      rendering
      ========================================================= */
   function setProgress(t) { if (ui.progress) ui.progress.textContent = t; }
+
+  // escape model output before injecting it into innerHTML
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
 
   function renderLoading() {
     setProgress("");
@@ -392,6 +419,9 @@ LC.ai = (function () {
         break;
       case "429":
         msg = "openai's busy — try again in a sec";
+        break;
+      case "http":
+        msg = "the ai service returned an error — try again";
         break;
       case "parse":
         msg = "couldn't shape that into a quiz — try again";
