@@ -8,6 +8,12 @@ Thumbs.db
 # dependencies (none expected — vanilla project)
 node_modules/
 
+# secrets — never commit API keys (the OpenAI key lives only in localStorage)
+.env
+.env.*
+*.key
+secrets.*
+
 # editors
 .vscode/
 .idea/
